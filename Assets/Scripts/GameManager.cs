@@ -23,12 +23,39 @@ public class GameManager : MonoBehaviour
     public List<Card> Cards {get; private set;}
     public GameState GameState {get; set;}
     public Dictionary<int, List<Card>> PlayerCard {get; private set;} 
+    public List<Card> Pile {get; private set;}
 
     private int countDealing;
 
 
     public void Flip(Card card, bool value) => card.card.GetComponent<SpriteRenderer>().sprite = value ? card.sprite : backSprite;
+    public IEnumerator Draw(int playerIndex, Card card, bool flip)
+    {
+        var player = players[playerIndex];
+        var c = card.card.transform;
+        var startX = player.localEulerAngles.z + angleForStartCard / 2f;
+        var disX = angleForStartCard / numberStartCard;
+        var count = PlayerCard[playerIndex].Count;
+        var originPos = c.position;
+        var originRot = c.localEulerAngles;
+        var nextPos = new Vector3(player.position.x, player.position.y, numberStartCard - count + 1);
+        var nextRot = player.localEulerAngles + new Vector3(0, 0, startX - count * disX);
 
+        PlayerCard[playerIndex].Add(card);
+        if(Pile.Remove(card))
+        {
+            Debug.Log("Drew " + card.card.name + ". Rest " + Pile.Count);     
+        }
+
+        yield return Extensions.MoveTo(c, originPos, nextPos, originRot, nextRot, 0.25f);
+        count++;
+        Flip(card, flip);   
+    }
+
+    public void EndGame()
+    {
+        GameState = GameState.End;
+    }
 
     private void Start()
     {
@@ -41,6 +68,7 @@ public class GameManager : MonoBehaviour
         GameState = GameState.Dealing;
         StopAllCoroutines();
         Cards.Shuffle();
+        Pile = new List<Card>(Cards);
 
         foreach(var e in Cards)
         {
@@ -60,28 +88,16 @@ public class GameManager : MonoBehaviour
 
     private IEnumerator MoveCardToPlayerHand(int i, Transform player)
     {
-        float moveTime = 0.25f;
         float startX = player.localEulerAngles.z + angleForStartCard / 2f;
         float disX = angleForStartCard / numberStartCard;
 
         int numberPlayer = players.Length;
-        int count = 0;
         int playerIndex = i;
         for(; i < Cards.Count; i+=numberPlayer)
         {
-            PlayerCard[playerIndex].Add(Cards[i]);
+            yield return Draw(playerIndex, Cards[i], flipAllAfterShuffer);
 
-            var c = Cards[i].card.transform;
-            var originPos = c.position;
-            var originRot = c.localEulerAngles;
-            var nextPos = new Vector3(player.position.x, player.position.y, numberStartCard - count + 1);
-            var nextRot = player.localEulerAngles + new Vector3(0, 0, startX - count * disX);
-
-            yield return Extensions.MoveTo(c, originPos, nextPos, originRot, nextRot, moveTime);
-            count++;
-            Flip(Cards[i], flipAllAfterShuffer);
-
-            if(count >= numberStartCard)
+            if(PlayerCard[playerIndex].Count >= numberStartCard)
                 break;
         }
 
